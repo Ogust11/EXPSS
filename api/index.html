@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serverless Expense Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 min-h-screen">
+
+    <div id="app" class="max-w-4xl mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-blue-700">Expense Tracker</h1>
+            <p class="text-gray-500 mt-2">Serverless API Demo (Vercel Ready)</p>
+        </header>
+
+        <!-- Notification Bar -->
+        <div id="notification" class="hidden p-4 rounded-lg mb-6 text-sm text-center font-medium" role="alert"></div>
+
+        <!-- Expense Input Card -->
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl mb-10 border border-blue-100">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-800">Record a New Expense</h2>
+            <form id="expenseForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <input type="text" id="expenseName" placeholder="Expense Name (e.g., Coffee, Rent)" required
+                    class="col-span-1 md:col-span-3 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                
+                <input type="number" id="expenseAmount" placeholder="Amount (USD)" step="0.01" min="0.01" required
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                
+                <input type="date" id="expenseDate" required
+                    class="p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+                
+                <button type="submit" id="submitButton"
+                    class="col-span-1 md:col-span-1 bg-blue-600 text-white font-bold py-3 rounded-lg shadow-md hover:bg-blue-700 transition duration-150 ease-in-out transform hover:scale-[1.01] active:scale-100 disabled:opacity-50">
+                    Add Expense
+                </button>
+            </form>
+        </div>
+
+        <!-- Expense List Section -->
+        <div class="bg-white p-6 sm:p-8 rounded-xl shadow-2xl border border-gray-200">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-800">Expense History</h2>
+                <button id="fetchButton" class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0015.5 13H9l1.41-1.41-1.41-1.42 3.19-3.2 1.42 1.42 1.41-1.41L15.5 5h4.082V4m-4.082 16h4.082v-1l-1.41-1.41 1.41-1.42-3.19-3.2-1.42 1.42-1.41-1.41L8.5 19H4.418v1"></path></svg>
+                    Fetch Mock Data
+                </button>
+            </div>
+            
+            <div id="expenseList" class="space-y-3">
+                <p id="loadingMessage" class="text-center text-gray-500 hidden">Loading expenses from API...</p>
+                <p id="emptyMessage" class="text-center text-gray-400">Click "Fetch Mock Data" to load initial expenses.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_ENDPOINT = '/api/expenses';
+        const expenseForm = document.getElementById('expenseForm');
+        const expenseList = document.getElementById('expenseList');
+        const fetchButton = document.getElementById('fetchButton');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const emptyMessage = document.getElementById('emptyMessage');
+        const notification = document.getElementById('notification');
+        const submitButton = document.getElementById('submitButton');
+
+        // Helper function to display temporary notifications
+        function showNotification(message, type = 'success') {
+            notification.textContent = message;
+            notification.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700');
+            
+            if (type === 'error') {
+                notification.classList.add('bg-red-100', 'text-red-700');
+            } else { // default to success
+                notification.classList.add('bg-green-100', 'text-green-700');
+            }
+
+            setTimeout(() => {
+                notification.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Renders the list of expenses in the UI
+        function renderExpenses(expenses) {
+            expenseList.innerHTML = '';
+            if (expenses.length === 0) {
+                emptyMessage.classList.remove('hidden');
+                return;
+            }
+            emptyMessage.classList.add('hidden');
+
+            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            expenses.forEach(expense => {
+                const item = document.createElement('div');
+                item.className = 'flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition duration-150';
+                item.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="font-semibold text-gray-800">${expense.name}</span>
+                        <span class="text-sm text-gray-500">${new Date(expense.date).toLocaleDateString()}</span>
+                    </div>
+                    <span class="text-lg font-bold text-red-600">
+                        $${expense.amount.toFixed(2)}
+                    </span>
+                `;
+                expenseList.appendChild(item);
+            });
+        }
+
+        // Fetches expenses from the API
+        async function fetchExpenses() {
+            loadingMessage.classList.remove('hidden');
+            try {
+                const response = await fetch(API_ENDPOINT);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                
+                // Store fetched data locally for demo persistence, as the API is stateless
+                localStorage.setItem('localExpenses', JSON.stringify(data));
+                renderExpenses(data);
+                showNotification(`Successfully loaded ${data.length} expenses from API.`, 'success');
+            } catch (error) {
+                console.error('Error fetching expenses:', error);
+                showNotification(`Error: Could not fetch expenses. ${error.message}`, 'error');
+            } finally {
+                loadingMessage.classList.add('hidden');
+            }
+        }
+
+        // Submits a new expense to the API
+        expenseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            submitButton.disabled = true;
+            submitButton.textContent = 'Recording...';
+
+            const newExpense = {
+                name: document.getElementById('expenseName').value,
+                amount: parseFloat(document.getElementById('expenseAmount').value),
+                date: document.getElementById('expenseDate').value,
+            };
+
+            try {
+                const response = await fetch(API_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newExpense)
+                });
+
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showNotification(`API response: ${result.message}`, 'success');
+                    expenseForm.reset();
+                    
+                    // Since the API is stateless, we update the client-side list manually
+                    let localExpenses = JSON.parse(localStorage.getItem('localExpenses') || '[]');
+                    localExpenses.push(newExpense); 
+                    localStorage.setItem('localExpenses', JSON.stringify(localExpenses));
+                    renderExpenses(localExpenses);
+
+                } else {
+                    throw new Error(result.error || 'Failed to record expense.');
+                }
+
+            } catch (error) {
+                console.error('Error recording expense:', error);
+                showNotification(`Failed to record expense: ${error.message}`, 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Add Expense';
+            }
+        });
+
+        // Event listener for the fetch button
+        fetchButton.addEventListener('click', fetchExpenses);
+
+        // Initial Load: Load local data if available, otherwise show empty message
+        window.onload = () => {
+            const localData = JSON.parse(localStorage.getItem('localExpenses') || '[]');
+            if (localData.length > 0) {
+                renderExpenses(localData);
+                emptyMessage.classList.add('hidden');
+            } else {
+                emptyMessage.classList.remove('hidden');
+            }
+            
+            // Set today's date as default for the date input
+            document.getElementById('expenseDate').valueAsDate = new Date();
+        };
+
+    </script>
+</body>
+</html>
