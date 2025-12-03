@@ -1,0 +1,57 @@
+/**
+ * Vercel Serverless Function for Expense Tracking.
+ * Handles GET (fetch list) and POST (add new expense).
+ * Note: This implementation uses mocked data for GET and simulates a successful POST,
+ * as persistence (like a database) is not configured in this scope.
+ */
+
+module.exports = (req, res) => {
+    // Set CORS headers for local development and cross-origin requests
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        res.writeHead(200);
+        return res.end();
+    }
+
+    if (req.method === 'GET') {
+        // --- Mock GET Data ---
+        const expenses = [
+            { id: 1, name: "Groceries", amount: 85.50, date: "2025-01-01" },
+            { id: 2, name: "Netflix Subscription", amount: 15.99, date: "2025-01-05" },
+            { id: 3, name: "Gasoline", amount: 45.00, date: "2025-01-10" }
+        ];
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(expenses));
+
+    } else if (req.method === 'POST') {
+        // --- Simulate POST (Save Expense) ---
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const newExpense = JSON.parse(body);
+                
+                // Simulate successful database save
+                const response = { 
+                    message: "Expense recorded successfully (simulated)", 
+                    data: { ...newExpense, id: Date.now() } 
+                };
+
+                res.writeHead(201, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(response));
+                
+            } catch (error) {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON payload' }));
+            }
+        });
+
+    } else {
+        res.writeHead(405, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    }
+};
